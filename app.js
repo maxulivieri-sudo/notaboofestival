@@ -57,13 +57,12 @@ const themeAsset = (path) => {
   if (!path || /^(?:https?:|data:|\/\/)/i.test(path)) return path;
   return themeUrl ? `${themeUrl}/${path.replace(/^\//, '')}` : path;
 };
-const officialLogo = themeAsset('assets/brand/logo-notaboo.png');
 
-// Nel prototipo statico questi fogli non sono nel markup iniziale. Nel tema
-// WordPress sono invece già caricati da functions.php: evitarne un secondo
-// caricamento con un URL relativo, che nelle pagine /edizione-xxxx/ darebbe 404.
+// Festival static site: keep N! text mark (assets/brand/logo-notaboo.png is not shipped).
+// Load optional stylesheets only if missing from the document head.
 if (!themeUrl) {
-  ['brand.css', 'typography.css', 'deployment.css'].forEach((stylesheet) => {
+  ['brand.css', 'typography.css'].forEach((stylesheet) => {
+    if (document.querySelector(`link[href="${stylesheet}"]`)) return;
     const style = document.createElement('link');
     style.rel = 'stylesheet';
     style.href = stylesheet;
@@ -72,16 +71,9 @@ if (!themeUrl) {
 }
 const favicon = document.querySelector('link[rel~="icon"]') || document.createElement('link');
 favicon.rel = 'icon';
-favicon.type = 'image/png';
-favicon.href = officialLogo;
+favicon.type = 'image/svg+xml';
+favicon.href = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="32" fill="%23e6ff48"/><text x="32" y="42" text-anchor="middle" font-family="monospace" font-size="26" font-weight="700" fill="%230d0d0d">N!</text></svg>');
 if (!favicon.parentNode) document.head.append(favicon);
-document.querySelectorAll('.brand-mark').forEach((mark) => {
-  const logo = document.createElement('img');
-  logo.className = 'brand-logo';
-  logo.src = officialLogo;
-  logo.alt = '';
-  mark.replaceWith(logo);
-});
 
 const P2025 = 'assets/edizione-2025/wordpress/';
 const P2026 = 'assets/edizione-2026/';
@@ -139,26 +131,10 @@ function editionPage() {
   const year = document.body.dataset.edition || new URLSearchParams(window.location.search).get('year');
   const e = editionData[year];
   if (!e) return;
-  if ((year === '2025' || year === '2026') && !document.querySelector('link[href="edition-2024.css"]')) {
-    const archiveStyles = document.createElement('link');
-    archiveStyles.rel = 'stylesheet';
-    archiveStyles.href = themeAsset('edition-2024.css');
-    document.head.append(archiveStyles);
-  }
-  if (!document.querySelector('link[href="multi-speakers.css"]')) {
-    const groupStyles = document.createElement('link');
-    groupStyles.rel = 'stylesheet';
-    groupStyles.href = themeAsset('multi-speakers.css');
-    document.head.append(groupStyles);
-  }
-  if (!document.querySelector('link[href="navigation.css"]')) {
-    const navigationStyles = document.createElement('link');
-    navigationStyles.rel = 'stylesheet';
-    navigationStyles.href = themeAsset('navigation.css');
-    document.head.append(navigationStyles);
-  }
+  // Program / speaker / lightbox styles live in edition.css for this festival site.
+  // Skip loading edition-2024.css, multi-speakers.css, navigation.css (not in repo).
   document.title = `NoTaboo ${e.year} — ${e.theme}`;
-  document.querySelector('[data-year]').textContent = e.year;
+  document.querySelectorAll('[data-year]').forEach((node) => { node.textContent = e.year; });
   document.querySelector('[data-theme]').textContent = e.theme;
   document.querySelector('[data-date]').textContent = e.date;
   document.querySelector('[data-intro]').textContent = e.intro;
@@ -201,7 +177,7 @@ function editionPage() {
   }).join('');
 }
 
-document.querySelector('#year')?.append(new Date().getFullYear());
+const yearEl = document.querySelector('#year'); if (yearEl) yearEl.textContent = String(new Date().getFullYear());
 editionPage();
 const header = document.querySelector('.site-header');
 const updateHeaderState = () => header?.classList.toggle('is-scrolled', window.scrollY > 40);
@@ -214,7 +190,7 @@ function getLightbox() { let dialog = document.querySelector('.image-lightbox');
 document.addEventListener('click', (event) => { const trigger = event.target.closest('.gallery-image'); if (!trigger) return; const dialog = getLightbox(); dialog.querySelector('img').src = trigger.dataset.gallerySrc; dialog.showModal(); });
 document.addEventListener('click', (event) => { const dialog = document.querySelector('.image-lightbox'); if (dialog && (event.target.closest('.lightbox-close') || event.target === dialog)) dialog.close(); });
 const observer = new IntersectionObserver((entries) => entries.forEach(entry => { if (!entry.isIntersecting) return; entry.target.classList.add('is-visible'); observer.unobserve(entry.target); }), { threshold: .12 });
-document.querySelectorAll('.edition-card,.values-grid article,.project-card,.faq details,.program-item,.quote-band p').forEach((el, index) => {
+document.querySelectorAll('.edition-card,.values-grid article,.project-card,.faq details,.program-item,.quote-band p,.gallery-strip,.next-edition').forEach((el, index) => {
   el.classList.add('reveal');
   el.style.setProperty('--reveal-delay', `${(index % 4) * 70}ms`);
   observer.observe(el);
