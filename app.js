@@ -57,13 +57,12 @@ const themeAsset = (path) => {
   if (!path || /^(?:https?:|data:|\/\/)/i.test(path)) return path;
   return themeUrl ? `${themeUrl}/${path.replace(/^\//, '')}` : path;
 };
-const officialLogo = themeAsset('assets/brand/logo-notaboo.png');
 
-// Nel prototipo statico questi fogli non sono nel markup iniziale. Nel tema
-// WordPress sono invece già caricati da functions.php: evitarne un secondo
-// caricamento con un URL relativo, che nelle pagine /edizione-xxxx/ darebbe 404.
+// Festival static site: keep N! text mark (assets/brand/logo-notaboo.png is not shipped).
+// Load optional stylesheets only if missing from the document head.
 if (!themeUrl) {
-  ['brand.css', 'typography.css', 'deployment.css'].forEach((stylesheet) => {
+  ['brand.css', 'typography.css'].forEach((stylesheet) => {
+    if (document.querySelector(`link[href="${stylesheet}"]`)) return;
     const style = document.createElement('link');
     style.rel = 'stylesheet';
     style.href = stylesheet;
@@ -72,16 +71,9 @@ if (!themeUrl) {
 }
 const favicon = document.querySelector('link[rel~="icon"]') || document.createElement('link');
 favicon.rel = 'icon';
-favicon.type = 'image/png';
-favicon.href = officialLogo;
+favicon.type = 'image/svg+xml';
+favicon.href = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="32" fill="%23e6ff48"/><text x="32" y="42" text-anchor="middle" font-family="monospace" font-size="26" font-weight="700" fill="%230d0d0d">N!</text></svg>');
 if (!favicon.parentNode) document.head.append(favicon);
-document.querySelectorAll('.brand-mark').forEach((mark) => {
-  const logo = document.createElement('img');
-  logo.className = 'brand-logo';
-  logo.src = officialLogo;
-  logo.alt = '';
-  mark.replaceWith(logo);
-});
 
 const P2025 = 'assets/edizione-2025/wordpress/';
 const P2026 = 'assets/edizione-2026/';
@@ -139,26 +131,10 @@ function editionPage() {
   const year = document.body.dataset.edition || new URLSearchParams(window.location.search).get('year');
   const e = editionData[year];
   if (!e) return;
-  if ((year === '2025' || year === '2026') && !document.querySelector('link[href="edition-2024.css"]')) {
-    const archiveStyles = document.createElement('link');
-    archiveStyles.rel = 'stylesheet';
-    archiveStyles.href = themeAsset('edition-2024.css');
-    document.head.append(archiveStyles);
-  }
-  if (!document.querySelector('link[href="multi-speakers.css"]')) {
-    const groupStyles = document.createElement('link');
-    groupStyles.rel = 'stylesheet';
-    groupStyles.href = themeAsset('multi-speakers.css');
-    document.head.append(groupStyles);
-  }
-  if (!document.querySelector('link[href="navigation.css"]')) {
-    const navigationStyles = document.createElement('link');
-    navigationStyles.rel = 'stylesheet';
-    navigationStyles.href = themeAsset('navigation.css');
-    document.head.append(navigationStyles);
-  }
+  // Program / speaker / lightbox styles live in edition.css for this festival site.
+  // Skip loading edition-2024.css, multi-speakers.css, navigation.css (not in repo).
   document.title = `NoTaboo ${e.year} — ${e.theme}`;
-  document.querySelector('[data-year]').textContent = e.year;
+  document.querySelectorAll('[data-year]').forEach((node) => { node.textContent = e.year; });
   document.querySelector('[data-theme]').textContent = e.theme;
   document.querySelector('[data-date]').textContent = e.date;
   document.querySelector('[data-intro]').textContent = e.intro;
@@ -187,21 +163,70 @@ function editionPage() {
     videoStyles.textContent = '.edition-video{align-items:center;background:#121212;color:#fff;display:grid;gap:7vw;grid-template-columns:minmax(240px,.58fr) minmax(0,1.15fr);padding:88px 9vw}.edition-video__copy .eyebrow{color:var(--acid);margin:0 0 16px}.edition-video__copy h2{font:700 clamp(3.2rem,5.8vw,6.2rem)/.85 var(--space);letter-spacing:-.09em;margin:0}.edition-video__copy h2 em{color:var(--coral);font-style:normal}.edition-video__copy>p:last-child{color:#d7d1cb;font-size:15px;line-height:1.5;max-width:260px;margin:25px 0 0}.edition-video__frame{background:#000;border:1px solid rgba(255,255,255,.2);box-shadow:16px 16px 0 var(--coral);line-height:0;overflow:hidden}.edition-video__frame iframe{aspect-ratio:16/9;border:0;display:block;width:100%}@media(max-width:760px){.edition-video{display:block;padding:63px 23px}.edition-video__copy{margin-bottom:33px}.edition-video__copy h2{font-size:3.5rem}.edition-video__frame{box-shadow:9px 9px 0 var(--coral)}}';
     document.head.append(videoStyles);
   }
-  document.querySelector('[data-program]').innerHTML = e.program.map((item, index) => {
-    if (Array.isArray(item)) return `<article class="program-item"><div class="program-time">${item[0]}</div><div><p class="program-index">${String(index + 1).padStart(2,'0')}</p><h3>${item[1]}</h3><p class="program-guest">${item[2]}</p><p class="program-description">${item[3]}</p></div><span class="program-symbol">✦</span></article>`;
-    const day = item.day ? `<p class="program-day">${item.day}</p>` : '';
+  const programRoot = document.querySelector('[data-program]');
+  const dayNavItems = [];
+  const seenDays = new Set();
+  const slugifyDay = (label) => label
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+
+  programRoot.innerHTML = e.program.map((item, index) => {
+    if (Array.isArray(item)) {
+      const flip = index % 2 === 1 ? ' program-item--flip' : '';
+      return `<article class="program-item${flip}"><div class="program-time">${item[0]}</div><div><p class="program-index">${String(index + 1).padStart(2,'0')}</p><div class="program-title-row"><h3>${item[1]}</h3><span class="program-symbol" aria-hidden="true">✦</span></div><p class="program-guest">${item[2]}</p><p class="program-description">${item[3]}</p></div></article>`;
+    }
+    let day = '';
+    if (item.day) {
+      const shortLabel = item.day.split('·')[0].trim();
+      const dayId = `day-${slugifyDay(shortLabel)}`;
+      if (!seenDays.has(dayId)) {
+        seenDays.add(dayId);
+        dayNavItems.push({ id: dayId, label: shortLabel });
+      }
+      day = `<p class="program-day" id="${dayId}">${item.day}</p>`;
+    }
     const label = item.label ? `<p class="program-label">${item.label}</p>` : '';
+    const flip = index % 2 === 1 ? ' program-item--flip' : '';
     const portraitPeople = item.people.filter(person => person.photo);
     const portraits = portraitPeople.map(person => `<img src="${themeAsset(person.photo)}" alt="${person.name}" loading="lazy" />`).join('');
     const portraitClass = portraitPeople.length > 1 ? `speaker-portraits speaker-portraits--group speaker-portraits--${portraitPeople.length}` : 'speaker-portraits';
     const people = item.people.map(person => `<div class="speaker"><h4>${person.name}</h4><p>${person.role}</p></div>`).join('');
     const description = item.description.map(text => `<p>${text}</p>`).join('');
     const gallery = item.gallery?.length ? `<div class="event-gallery"><p class="gallery-label">Dentro l’incontro</p><div class="gallery-grid">${item.gallery.map((photo, photoIndex) => { const image = themeAsset(photo); return `<button type="button" class="gallery-image" data-gallery-src="${image}" aria-label="Apri foto ${photoIndex + 1} di ${item.title}"><img src="${image}" alt="Momento dal talk ${item.title}" loading="lazy" /></button>`; }).join('')}</div></div>` : '';
-    return `${day}<article class="program-item program-item--full"><div class="program-time">${item.time}</div><div class="program-full-content"><p class="program-index">${String(index + 1).padStart(2,'0')}</p>${label}<h3>${item.title}</h3><div class="program-full-body${portraits ? '' : ' no-portrait'}"><div class="${portraitClass}">${portraits}</div><div><div class="speaker-list">${people}</div><div class="program-description">${description}</div>${gallery}</div></div></div><span class="program-symbol">✦</span></article>`;
+    return `${day}<article class="program-item program-item--full${flip}"><div class="program-time">${item.time}</div><div class="program-full-content"><p class="program-index">${String(index + 1).padStart(2,'0')}</p>${label}<div class="program-title-row"><h3>${item.title}</h3><span class="program-symbol" aria-hidden="true">✦</span></div><div class="program-full-body${portraits ? '' : ' no-portrait'}"><div class="${portraitClass}">${portraits}</div><div><div class="speaker-list">${people}</div><div class="program-description">${description}</div>${gallery}</div></div></div></article>`;
   }).join('');
+
+  // Sticky mini-nav for program days (mobile-first), generated from item.day labels
+  const existingNav = document.querySelector('.program-day-nav');
+  existingNav?.remove();
+  if (dayNavItems.length > 1) {
+    const nav = document.createElement('nav');
+    nav.className = 'program-day-nav';
+    nav.setAttribute('aria-label', 'Giorni del programma');
+    nav.innerHTML = dayNavItems.map(({ id, label }) => `<a href="#${id}">${label}</a>`).join('');
+    programRoot.before(nav);
+
+    const links = [...nav.querySelectorAll('a')];
+    const sections = dayNavItems.map(({ id }) => document.getElementById(id)).filter(Boolean);
+    const setActive = () => {
+      const headerOffset = (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--header-h'), 10) || 80) + 48;
+      let current = sections[0];
+      for (const section of sections) {
+        if (section.getBoundingClientRect().top - headerOffset <= 0) current = section;
+      }
+      links.forEach((link) => {
+        const active = current && link.getAttribute('href') === `#${current.id}`;
+        link.classList.toggle('is-active', Boolean(active));
+      });
+    };
+    setActive();
+    window.addEventListener('scroll', setActive, { passive: true });
+  }
 }
 
-document.querySelector('#year')?.append(new Date().getFullYear());
+const yearEl = document.querySelector('#year'); if (yearEl) yearEl.textContent = String(new Date().getFullYear());
 editionPage();
 const header = document.querySelector('.site-header');
 const updateHeaderState = () => header?.classList.toggle('is-scrolled', window.scrollY > 40);
@@ -214,7 +239,7 @@ function getLightbox() { let dialog = document.querySelector('.image-lightbox');
 document.addEventListener('click', (event) => { const trigger = event.target.closest('.gallery-image'); if (!trigger) return; const dialog = getLightbox(); dialog.querySelector('img').src = trigger.dataset.gallerySrc; dialog.showModal(); });
 document.addEventListener('click', (event) => { const dialog = document.querySelector('.image-lightbox'); if (dialog && (event.target.closest('.lightbox-close') || event.target === dialog)) dialog.close(); });
 const observer = new IntersectionObserver((entries) => entries.forEach(entry => { if (!entry.isIntersecting) return; entry.target.classList.add('is-visible'); observer.unobserve(entry.target); }), { threshold: .12 });
-document.querySelectorAll('.edition-card,.values-grid article,.project-card,.faq details,.program-item,.quote-band p').forEach((el, index) => {
+document.querySelectorAll('.edition-card,.values-grid article,.project-card,.faq details,.program-item,.quote-band p,.gallery-strip,.next-edition').forEach((el, index) => {
   el.classList.add('reveal');
   el.style.setProperty('--reveal-delay', `${(index % 4) * 70}ms`);
   observer.observe(el);
