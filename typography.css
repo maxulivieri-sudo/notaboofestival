@@ -15,3 +15,13 @@
 .next-edition__copy {
   text-wrap: pretty;
 }
+
+.edition-intro {
+  max-width: 42ch;
+  line-height: 1.45;
+}
+
+.program-item h3 {
+  /* one step below hero display, above body */
+  font-weight: 600;
+}

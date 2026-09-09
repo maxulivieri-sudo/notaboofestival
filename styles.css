@@ -1,7 +1,7 @@
 :root {
   --ink: #0d0d0d;
   --paper: #f6f2ec;
-  --coral: #e74c47;
+  --coral: #c23430; /* darkened for ≥4.5:1 on paper */
   --lilac: #9c72bd;
   --acid: #e6ff48;
   --pink: #ffc9cf;
@@ -308,6 +308,7 @@ button {
   font-weight: 700;
   gap: 14px;
   justify-content: space-between;
+  min-height: 48px;
   padding: 14px 20px;
   transition: transform 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
 }
@@ -384,10 +385,16 @@ button {
 .footer-links a {
   text-decoration: underline;
   text-underline-offset: 4px;
+  border-radius: 2px;
 }
 
 .footer-links a:hover {
   color: var(--acid);
+}
+
+.footer-links a:focus-visible {
+  outline: 2px solid var(--acid);
+  outline-offset: 4px;
 }
 
 @media (min-width: 761px) {
@@ -413,7 +420,7 @@ button {
 
   .site-header {
     height: var(--header-h);
-    padding: 0 20px;
+    padding: 0 16px;
   }
 
   .nav-cta {
@@ -421,11 +428,11 @@ button {
   }
 
   .section-wrap {
-    padding-left: 20px;
-    padding-right: 20px;
+    padding-left: 16px;
+    padding-right: 16px;
   }
 
   .site-footer {
-    padding: 28px 20px 32px;
+    padding: 28px 16px 32px;
   }
 }
